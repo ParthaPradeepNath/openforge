@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { type KeyBinding, TextareaRenderable } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 
+import { useToast } from "../providers/toast";
 import { DoubleBorderChars } from "./border";
 import { CommandMenu } from "./command-menu";
 import type { Command } from "./command-menu/types";
@@ -25,6 +26,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
   const renderer = useRenderer();
+  const toast = useToast();
 
   const {
     showCommandMenu,
@@ -69,12 +71,13 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       if (command.action) {
         command.action({
           exit: () => renderer.destroy(),
+          toast,
         });
       } else {
         textarea.insertText(command.value + " ");
       }
     },
-    [renderer]
+    [renderer, toast]
   );
 
   // Kept in refs so the stable execute callback always reads the latest
