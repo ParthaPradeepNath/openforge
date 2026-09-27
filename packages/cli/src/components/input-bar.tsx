@@ -89,7 +89,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
         textarea.insertText(command.value + " ");
       }
     },
-    [renderer, toast]
+    [renderer, toast, dialog]
   );
 
   // Kept in refs so the stable execute callback always reads the latest
