@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { type KeyBinding, TextareaRenderable } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 
+import { useDialog } from "../providers/dialog";
+import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useToast } from "../providers/toast";
 import { DoubleBorderChars } from "./border";
 import { CommandMenu } from "./command-menu";
@@ -27,6 +29,8 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const onSubmitRef = useRef<() => void>(() => {});
   const renderer = useRenderer();
   const toast = useToast();
+  const dialog = useDialog();
+  const { isTopLayer, setResponder } = useKeyboardLayer();
 
   const {
     showCommandMenu,
@@ -72,6 +76,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
         command.action({
           exit: () => renderer.destroy(),
           toast,
+          dialog,
         });
       } else {
         textarea.insertText(command.value + " ");
@@ -115,6 +120,22 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     handleSubmit();
   };
+
+  // Register the base layer responder for ctrl + c dismissal
+  useEffect(() => {
+    setResponder("base", () => {
+      if (disabled) return false;
+
+      const textarea = textareaRef.current;
+      if (textarea && textarea.plainText.length > 0) {
+        textarea.setText("");
+        return true;
+      }
+      return false;
+    });
+
+    return () => setResponder("base", null);
+  }, [disabled, setResponder]);
 
   return (
     <box width="100%">
@@ -160,7 +181,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
             </box>
           )}
           <textarea
-            focused={!disabled}
+            focused={!disabled && (isTopLayer("base") || isTopLayer("command"))}
             keyBindings={TEXTAREA_KEY_BINDINGS}
             placeholder={`Ask anything... "Fix a bug in the authentication flow"`}
             ref={textareaRef}
