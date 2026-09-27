@@ -11,6 +11,7 @@ import { CommandMenu } from "./command-menu";
 import type { Command } from "./command-menu/types";
 import { useCommandMenu } from "./command-menu/use-command-menu";
 import { StatusBar } from "./status-bar";
+import { useTheme } from "../providers/theme";
 
 type Props = {
   onSubmit: (text: string) => void;
@@ -31,6 +32,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const toast = useToast();
   const dialog = useDialog();
   const { isTopLayer, setResponder } = useKeyboardLayer();
+  const {colors} = useTheme()
 
   const {
     showCommandMenu,
@@ -42,13 +44,18 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     setSelectedIndex,
   } = useCommandMenu();
 
+  // Kept in a ref so the stable content-change callback always reads the latest
+  // handleContentChange instead of the one captured on first render.
+  const handleContentChangeRef = useRef(handleContentChange);
+  handleContentChangeRef.current = handleContentChange;
+
   const handleTextareaContentChange = useCallback(() => {
     // we are tracking or looking for the "/" to be able to open the command-menu
     // and we need to take the value using ref otherwise we get a stale value
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    handleContentChange(textarea.plainText);
+    handleContentChangeRef.current(textarea.plainText);
   }, []);
 
   const handleSubmit = useCallback(() => {
@@ -150,7 +157,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       > */}
       <box
         border={["left"]}
-        borderColor="cyan"
+        borderColor={colors.primary}
         customBorderChars={DoubleBorderChars}
       >
         <box
@@ -158,7 +165,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           justifyContent="center"
           paddingX={2}
           paddingY={1}
-          backgroundColor="#1A1A24"
+          backgroundColor={colors.surface}
           width="100%"
           gap={1}
         >
@@ -168,7 +175,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
               bottom="100%"
               left={0}
               width="100%"
-              backgroundColor="#1A1A24"
+              backgroundColor={colors.surface}
               zIndex={10}
             >
               <CommandMenu
@@ -185,6 +192,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
             keyBindings={TEXTAREA_KEY_BINDINGS}
             placeholder={`Ask anything... "Fix a bug in the authentication flow"`}
             ref={textareaRef}
+            onContentChange={handleTextareaContentChange}
           />
           <StatusBar />
         </box>

@@ -12,6 +12,7 @@ import { useTerminalDimensions } from "@opentui/react";
 import { SplitBorderChars } from "../../components/border";
 import type { ToastOptions, ToastVariant } from "./types";
 import { DEFAULT_DURATION } from "./types";
+import { useTheme } from "../theme";
 
 export type ToastContextValue = {
   show: (options: ToastOptions) => void;
@@ -83,15 +84,16 @@ type ToastProps = {
 
 function Toast({ currentToast }: ToastProps) {
   const { width } = useTerminalDimensions();
+  const { colors } = useTheme()
 
   if (!currentToast) {
     return null;
   }
 
   const variantColors: Record<ToastVariant, string> = {
-    success: "#82E0AA",
-    error: "#E74C5E",
-    info: "#56D6C2",
+    success: colors.success,
+    error: colors.error,
+    info: colors.info,
   };
 
   // fallback to info color if not variant color is given
@@ -111,7 +113,7 @@ function Toast({ currentToast }: ToastProps) {
       paddingRight={2}
       paddingTop={1}
       paddingBottom={1}
-      backgroundColor="#1A1A24"
+      backgroundColor={colors.surface}
       borderColor={borderColor}
       border={["left", "right"]}
       customBorderChars={SplitBorderChars}

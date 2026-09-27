@@ -8,6 +8,7 @@ import {
 import { useKeyboard } from "@opentui/react";
 
 import { useKeyboardLayer } from "../providers/keyboard-layer";
+import { useTheme } from "../providers/theme";
 
 const MAX_VISIBLE_ITEMS = 6;
 
@@ -37,7 +38,7 @@ export function DialogSearchList<T>({
   const inputRef = useRef<InputRenderable>(null);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const { isTopLayer } = useKeyboardLayer();
-  // const {colors } = useTheme()
+  const {colors } = useTheme()
 
   const handleContentChange = useCallback(() => {
     const text = inputRef.current?.value ?? ""; // getting the current text value from the inputRef
@@ -115,8 +116,7 @@ export function DialogSearchList<T>({
                 flexDirection="row"
                 height={1}
                 overflow="hidden"
-                backgroundColor={isSelected ? "#89B4FA" : undefined}
-                // replace with theme coloring
+                backgroundColor={isSelected ? colors.selection : undefined}
                 onMouseMove={() => {
                   setSelectedIndex(i); // set the index to itself (no props passed)
                   if (onHighlight) onHighlight(item); // if highlighted then call the highlight fn
