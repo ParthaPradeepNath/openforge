@@ -1,1 +1,1 @@
-export { ThemeDialogContent } from "./theme-dialog"
+export { ThemeDialogContent } from "./theme-dialog";

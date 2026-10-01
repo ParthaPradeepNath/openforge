@@ -47,8 +47,8 @@ export const COMMANDS: Command[] = [
     action: (ctx) => {
       ctx.dialog.open({
         title: "Select Theme",
-        children: <ThemeDialogContent />
-      })
+        children: <ThemeDialogContent />,
+      });
     },
   },
   {

@@ -5,8 +5,8 @@ import { RGBA, TextAttributes } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 
 import { useKeyboardLayer } from "../keyboard-layer";
-import type { DialogConfig } from "./types";
 import { useTheme } from "../theme";
+import type { DialogConfig } from "./types";
 
 export type DialogContextValue = {
   open: (config: DialogConfig) => void;
@@ -71,7 +71,7 @@ type DialogProps = {
 function Dialog({ currentDialog, close }: DialogProps) {
   const { isTopLayer } = useKeyboardLayer();
   const dimensions = useTerminalDimensions();
-  const {colors} = useTheme()
+  const { colors } = useTheme();
 
   useKeyboard((key) => {
     if (!currentDialog || !isTopLayer("dialog")) return;

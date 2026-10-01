@@ -1,8 +1,9 @@
 import { TextAttributes } from "@opentui/core";
+
 import { useTheme } from "../providers/theme";
 
 export function StatusBar() {
-  const {colors} = useTheme()
+  const { colors } = useTheme();
 
   return (
     <box flexDirection="row" gap={1}>

@@ -10,9 +10,9 @@ import type { ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 
 import { SplitBorderChars } from "../../components/border";
+import { useTheme } from "../theme";
 import type { ToastOptions, ToastVariant } from "./types";
 import { DEFAULT_DURATION } from "./types";
-import { useTheme } from "../theme";
 
 export type ToastContextValue = {
   show: (options: ToastOptions) => void;
@@ -84,7 +84,7 @@ type ToastProps = {
 
 function Toast({ currentToast }: ToastProps) {
   const { width } = useTerminalDimensions();
-  const { colors } = useTheme()
+  const { colors } = useTheme();
 
   if (!currentToast) {
     return null;

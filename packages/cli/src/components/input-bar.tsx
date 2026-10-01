@@ -5,13 +5,13 @@ import { useRenderer } from "@opentui/react";
 
 import { useDialog } from "../providers/dialog";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
+import { useTheme } from "../providers/theme";
 import { useToast } from "../providers/toast";
 import { DoubleBorderChars } from "./border";
 import { CommandMenu } from "./command-menu";
 import type { Command } from "./command-menu/types";
 import { useCommandMenu } from "./command-menu/use-command-menu";
 import { StatusBar } from "./status-bar";
-import { useTheme } from "../providers/theme";
 
 type Props = {
   onSubmit: (text: string) => void;
@@ -32,7 +32,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const toast = useToast();
   const dialog = useDialog();
   const { isTopLayer, setResponder } = useKeyboardLayer();
-  const {colors} = useTheme()
+  const { colors } = useTheme();
 
   const {
     showCommandMenu,
