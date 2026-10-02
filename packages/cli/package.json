@@ -7,16 +7,21 @@
     "dev": "bun run --watch src/index.tsx"
   },
   "devDependencies": {
+    "@openforge/server": "workspace:*",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@openforge/shared": "workspace:*",
     "@opentui/core": "^0.4.2",
     "@opentui/react": "^0.4.2",
+    "@types/react": "^19.3.0",
+    "hono": "^4.13.12",
     "opentui-spinner": "^0.0.7",
     "react": "^19.2.6",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "zod": "^4.6.5"
   }
 }

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev:cli": "bun run --watch packages/cli/src/index.tsx",
+    "dev:server": "bun run --hot packages/server/src/index.ts",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx,css}\""
   },
