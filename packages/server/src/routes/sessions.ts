@@ -1,5 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
-import { db, MessageStatus } from "@openforge/database";
+import { MessageStatus } from "@openforge/database";
+import { db } from "@openforge/database/client";
 import { Mode, Role } from "@openforge/database/enums";
 import { findSupportedChatModel } from "@openforge/shared";
 import { Hono } from "hono";
