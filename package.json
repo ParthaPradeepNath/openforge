@@ -5,11 +5,18 @@
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/react": "^19.2.17",
     "prettier": "^3.9.9",
-    "prettier-plugin-tailwindcss": "^0.8.1"
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "prisma": "^7.10.0"
   },
   "scripts": {
     "dev:cli": "bun run --watch packages/cli/src/index.tsx",
     "dev:server": "bun run --hot packages/server/src/index.ts",
+    "db:generate": "bun run --cwd packages/database db:generate",
+    "db:validate": "bun run --cwd packages/database db:validate",
+    "db:migrate": "bun run --cwd packages/database db:migrate",
+    "db:deploy": "bun run --cwd packages/database db:deploy",
+    "db:push": "bun run --cwd packages/database db:push",
+    "db:studio": "bun run --cwd packages/database db:studio",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx,css}\""
   },

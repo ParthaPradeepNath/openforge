@@ -1,43 +1,45 @@
 import { zValidator } from "@hono/zod-validator";
+import { db, MessageStatus } from "@openforge/database";
+import { Mode, Role } from "@openforge/database/enums";
 import { findSupportedChatModel } from "@openforge/shared";
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
+// import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
 // later we will replace with real db
-type MockMessage = {
-  id: string;
-  role: string;
-  content: string;
-  mode: string;
-  model: string;
-  status: string;
-  parts: null;
-  duration: null;
-  createdAt: string;
-  sessionId: string;
-};
+// type MockMessage = {
+//   id: string;
+//   role: string;
+//   content: string;
+//   mode: string;
+//   model: string;
+//   status: string;
+//   parts: null;
+//   duration: null;
+//   createdAt: string;
+//   sessionId: string;
+// };
 
-type MockSession = {
-  id: string;
-  title: string;
-  cwd: string | null;
-  userId: string;
-  createdAt: string;
-  messages: MockMessage[];
-};
+// type MockSession = {
+//   id: string;
+//   title: string;
+//   cwd: string | null;
+//   userId: string;
+//   createdAt: string;
+//   messages: MockMessage[];
+// };
 
-const sessions: MockSession[] = [];
-let nextId = 1;
+// const sessions: MockSession[] = [];
+// let nextId = 1;
 
 const createSessionSchema = z.object({
   title: z.string(),
   cwd: z.string().optional(), // this is bassically the path
   initialMessage: z
     .object({
-      role: z.string(),
+      role: z.enum(Role),
       content: z.string(),
-      mode: z.string(),
+      mode: z.enum(Mode),
       model: z
         .string()
         .refine((id) => !!findSupportedChatModel(id), "Unsupported  model"),
@@ -59,18 +61,29 @@ const createSessionValidator = zValidator(
 );
 
 const app = new Hono()
-  .get("/", (c) => {
-    const result = sessions.map(({ id, title, createdAt }) => ({
-      id,
-      title,
-      createdAt,
-    }));
+  .get("/", async (c) => {
+    // const result = sessions.map(({ id, title, createdAt }) => ({
+    //   id,
+    //   title,
+    //   createdAt,
+    // }));
 
-    return c.json(result);
+    // return c.json(result);
+
+    const sessions = await db.session.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+      },
+    });
+
+    return c.json(sessions);
   })
   .get("/:id", async (c) => {
     // MOCK: Uncomment to simulate slow  session loading
-    await new Promise((r) => setTimeout(r, 5000));
+    // await new Promise((r) => setTimeout(r, 5000));
 
     // MOCK: Uncomment to simulate session loading error
     // throw new HTTPException(500,
@@ -78,7 +91,14 @@ const app = new Hono()
     // )
 
     const id = c.req.param("id");
-    const session = sessions.find((s) => s.id === id);
+    // const session = sessions.find((s) => s.id === id);
+
+    const session = await db.session.findUnique({
+      where: { id },
+      include: {
+        messages: { orderBy: { createdAt: "asc" } },
+      },
+    });
 
     if (!session) {
       return c.json({ error: "Session not found" }, 404);
@@ -87,41 +107,58 @@ const app = new Hono()
     return c.json(session);
   })
   .post("/", createSessionValidator, async (c) => {
-    // MOCK
-
     // using a validated version of json to validate
     const { initialMessage, ...data } = c.req.valid("json");
 
-    const id = String(nextId++);
-    const now = new Date().toISOString();
+    const session = await db.session.create({
+      data: {
+        ...data,
+        userId: "mock-user",
+        ...(initialMessage && {
+          messages: {
+            create: {
+              ...initialMessage,
+              status: MessageStatus.COMPLETE,
+            },
+          },
+        }),
+      },
+      include: { messages: true },
+    });
 
-    const messages: MockMessage[] = [];
-    if (initialMessage) {
-      messages.push({
-        id: String(nextId++),
-        role: initialMessage.role,
-        content: initialMessage.content,
-        mode: initialMessage.mode,
-        model: initialMessage.model,
-        status: "COMPLETE",
-        parts: null,
-        duration: null,
-        createdAt: now,
-        sessionId: id,
-      });
-    }
-
-    const session: MockSession = {
-      id,
-      title: data.title,
-      cwd: data.cwd ?? null,
-      userId: "mock-user",
-      createdAt: now,
-      messages,
-    };
-
-    sessions.push(session);
     return c.json(session, 201);
+
+    // MOCK
+    // const id = String(nextId++);
+    // const now = new Date().toISOString();
+
+    // const messages: MockMessage[] = [];
+    // if (initialMessage) {
+    //   messages.push({
+    //     id: String(nextId++),
+    //     role: initialMessage.role,
+    //     content: initialMessage.content,
+    //     mode: initialMessage.mode,
+    //     model: initialMessage.model,
+    //     status: "COMPLETE",
+    //     parts: null,
+    //     duration: null,
+    //     createdAt: now,
+    //     sessionId: id,
+    //   });
+    // }
+
+    // const session: MockSession = {
+    //   id,
+    //   title: data.title,
+    //   cwd: data.cwd ?? null,
+    //   userId: "mock-user",
+    //   createdAt: now,
+    //   messages,
+    // };
+
+    // sessions.push(session);
+    // return c.json(session, 201);
   });
 
 export default app;

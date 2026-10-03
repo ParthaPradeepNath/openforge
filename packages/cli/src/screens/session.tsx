@@ -43,6 +43,7 @@ export function Session() {
   const navigate = useNavigate();
   const toast = useToast();
 
+  // we preftech so that we don't need to go through 2 api request (post , get(from the if from the params))
   const prefetched = useMemo(() => {
     const parsed = sessionLocationSchema.safeParse(location.state);
     return parsed.success ? parsed.data.session : null;
