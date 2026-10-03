@@ -9,9 +9,12 @@
     "dev": "bun run --hot src/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/openai": "^4.0.83",
     "@hono/zod-validator": "^0.9.1",
     "@openforge/database": "workspace:*",
     "@openforge/shared": "workspace:*",
+    "ai": "^7.0.127",
     "dotenv": "^18.0.5",
     "hono": "^4.13.12",
     "zod": "^4.6.5"
