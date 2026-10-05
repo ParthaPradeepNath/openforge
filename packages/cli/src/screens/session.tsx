@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
+import {
+  DEFAULT_CHAT_MODEL_ID,
+  type SupportedChatModelId,
+} from "@openforge/shared";
 import type { InferResponseType } from "hono/client";
+import prettyMs from "pretty-ms";
 import { z } from "zod";
-import prettyMs from "pretty-ms"
-import { DEFAULT_CHAT_MODEL_ID, type SupportedChatModelId } from "@openforge/shared";
+
 import { BotMessage, ErrorMessage, UserMessage } from "../components/messages";
 import { SessionShell } from "../components/session-shell";
+import { type Message, useChat } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
 import { useToast } from "../providers/toast";
-import { useChat, type Message } from "../hooks/use-chat";
+
 // getting the type from the server "/session/:id", so that we will know that what will be returned
 // here we are inferring the response time , choosing session ,then session id route where we are choosing the get request, withe the return code
 type SessionData = InferResponseType<
@@ -28,7 +33,7 @@ const sessionLocationSchema = z.object({
 function mapDbMessages(dbMessages: SessionData["messages"]): Message[] {
   return dbMessages.map((m): Message => {
     if (m.role === "ERROR") {
-      return { id: m.id, role: "error", content: m.content}
+      return { id: m.id, role: "error", content: m.content };
     }
 
     if (m.role === "USER") {
@@ -37,8 +42,8 @@ function mapDbMessages(dbMessages: SessionData["messages"]): Message[] {
         role: "user",
         content: m.content,
         mode: m.mode,
-        model: m.model as SupportedChatModelId
-      }
+        model: m.model as SupportedChatModelId,
+      };
     }
 
     return {
@@ -48,16 +53,13 @@ function mapDbMessages(dbMessages: SessionData["messages"]): Message[] {
       model: m.model as SupportedChatModelId,
       mode: m.mode,
       parts: [{ type: "text", text: m.content }],
-      ...(m.duration != null ? { duration: prettyMs(m.duration * 1000)} : {})
-    }
-  })
+      ...(m.duration != null ? { duration: prettyMs(m.duration * 1000) } : {}),
+    };
+  });
 }
 
 // this will determine that whether we will use UserMessage, BotMessage or ErrorMessage
-function ChatMessage(
-  { msg }:
-   { msg: Message}) {
-
+function ChatMessage({ msg }: { msg: Message }) {
   if (msg.role === "user") {
     return <UserMessage message={msg.content} />;
   }
@@ -67,44 +69,49 @@ function ChatMessage(
   }
 
   // The default message
-  return <BotMessage 
-   parts={msg.parts}
-   model={msg.model}
-   mode={msg.mode}
-   duration={msg.duration}
-   streaming={false}
-  />;
+  return (
+    <BotMessage
+      parts={msg.parts}
+      model={msg.model}
+      mode={msg.mode}
+      duration={msg.duration}
+      streaming={false}
+    />
+  );
 }
 
-function SessionChat ({ session}: { session: SessionData}){
-  const [initialMessages] = useState(() => mapDbMessages(session.messages))
-  const { messages, streaming, submit, abort} = useChat(session.id, initialMessages);
+function SessionChat({ session }: { session: SessionData }) {
+  const [initialMessages] = useState(() => mapDbMessages(session.messages));
+  const { messages, streaming, submit, abort } = useChat(
+    session.id,
+    initialMessages
+  );
 
   // Stop the pending reply when the user leaves this session
   useEffect(() => {
-    return () => abort()
-  }, [abort])
+    return () => abort();
+  }, [abort]);
 
   return (
     <SessionShell
-      onSubmit={(text) => 
-        submit({ userText: text, mode: "BUILD", model: DEFAULT_CHAT_MODEL_ID})
+      onSubmit={(text) =>
+        submit({ userText: text, mode: "BUILD", model: DEFAULT_CHAT_MODEL_ID })
       }
       loading={streaming.status === "streaming"}
     >
       {messages.map((msg) => (
-        <ChatMessage key={msg.id} msg={msg}/>
+        <ChatMessage key={msg.id} msg={msg} />
       ))}
       {streaming.status === "streaming" && streaming.parts.length > 0 && (
-        <BotMessage 
+        <BotMessage
           parts={streaming.parts}
-          model={streaming.model }
+          model={streaming.model}
           mode={streaming.mode}
           streaming
         />
       )}
     </SessionShell>
-  )
+  );
 }
 
 export function Session() {
@@ -163,7 +170,5 @@ export function Session() {
     return <SessionShell onSubmit={() => {}} inputDisabled loading />;
   }
 
-  return (
-    <SessionChat key={session.id} session={session}/>
-  );
+  return <SessionChat key={session.id} session={session} />;
 }

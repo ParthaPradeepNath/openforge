@@ -295,49 +295,50 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     void resume({ mode: last.mode, model: last.model });
   }, [initialMessages, resume]);
 
-  const submit = useCallback(async(
-    { userText, mode, model }: SubmitParams
-  ) => {
-    const userMessage: Message = {
+  const submit = useCallback(
+    async ({ userText, mode, model }: SubmitParams) => {
+      const userMessage: Message = {
         id: crypto.randomUUID(),
         role: "user",
         content: userText,
         mode,
-        model
-    };
-    // we are doing a optimistic updating of the message with that user message
-    // we are not re-fetching the message just because we are submitting the new one we manually appending it
-    // that's why we are manually mocking it the userId
-    updateMessages((prev) => [...prev, userMessage])
+        model,
+      };
+      // we are doing a optimistic updating of the message with that user message
+      // we are not re-fetching the message just because we are submitting the new one we manually appending it
+      // that's why we are manually mocking it the userId
+      updateMessages((prev) => [...prev, userMessage]);
 
-    //call to "chat/:sesssionId" , now persist to the db and start streaming back
-    await runStream({
+      //call to "chat/:sesssionId" , now persist to the db and start streaming back
+      await runStream({
         mode,
         model,
         request: async (controller) => {
-            return apiClient.chat[":sessionId"].$post(
-                {
-                    param: { sessionId },
-                    json: { content: userText,mode, model}
-                }, 
-                {
-                    init: {
-                        signal: controller.signal
-                    }
-                }
-            )
-        }
-    })
-  },[runStream, sessionId, updateMessages])
+          return apiClient.chat[":sessionId"].$post(
+            {
+              param: { sessionId },
+              json: { content: userText, mode, model },
+            },
+            {
+              init: {
+                signal: controller.signal,
+              },
+            }
+          );
+        },
+      });
+    },
+    [runStream, sessionId, updateMessages]
+  );
 
   const abort = useCallback(() => {
     const activeStream = activeStreamRef.current;
-    if (!activeStream) return
+    if (!activeStream) return;
 
     activeStreamRef.current = null;
-    setStreaming({ status: "idle"})
-    activeStream.controller.abort()
-  }, [])
+    setStreaming({ status: "idle" });
+    activeStream.controller.abort();
+  }, []);
 
-  return { messages, streaming, submit, abort}
+  return { messages, streaming, submit, abort };
 }
