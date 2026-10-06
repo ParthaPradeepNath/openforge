@@ -1,3 +1,6 @@
+import type { Mode } from "@openforge/database/enums";
+import type { SupportedChatModelId } from "@openforge/shared";
+
 import type { DialogContextValue } from "../../providers/dialog";
 import type { ToastContextValue } from "../../providers/toast";
 
@@ -6,6 +9,9 @@ export type CommandContext = {
   toast: ToastContextValue;
   dialog: DialogContextValue;
   navigate: (path: string) => void;
+  mode: Mode;
+  setMode: (mode: Mode) => void;
+  setModel: (model: SupportedChatModelId) => void;
 };
 
 export type Command = {
