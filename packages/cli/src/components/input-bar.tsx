@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useNavigate } from "react-router";
 
 import { type KeyBinding, TextareaRenderable } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
@@ -30,6 +31,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const onSubmitRef = useRef<() => void>(() => {});
   const renderer = useRenderer();
   const toast = useToast();
+  const navigate = useNavigate();
   const dialog = useDialog();
   const { isTopLayer, setResponder } = useKeyboardLayer();
   const { colors } = useTheme();
@@ -84,12 +86,13 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           exit: () => renderer.destroy(),
           toast,
           dialog,
+          navigate,
         });
       } else {
         textarea.insertText(command.value + " ");
       }
     },
-    [renderer, toast, dialog]
+    [renderer, toast, dialog, navigate]
   );
 
   // Kept in refs so the stable execute callback always reads the latest
