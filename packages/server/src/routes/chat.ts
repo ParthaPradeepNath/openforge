@@ -21,6 +21,11 @@ const submitValidator = zValidator("json", submitSchema, (result, c) => {
   }
 });
 
+// going to store an In-Memory active Resume Session Id
+// bc it is possible that useEffect get fired twice results in storing same resume session twice
+// and keeping it in Memory we can prevent that in a very primitive level, drastically imprives the experience and reduces bug
+const activeResumeSessionIds = new Set<string>();
+
 // Strip error messages and empty assistant messages from the conversation
 function buildConversationHistory(
   messages: {
@@ -41,6 +46,22 @@ function buildConversationHistory(
   });
 }
 
+// a util fn
+function getResumableUserMessage(
+  messages: {
+    role: "USER" | "ASSISTANT" | "ERROR";
+    model: string;
+    mode: Mode;
+  }[]
+) {
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage || lastMessage.role !== "USER") {
+    return null;
+  }
+
+  return lastMessage;
+}
+
 type StreamParams = {
   sessionId: string;
   model: string;
@@ -57,6 +78,26 @@ async function streamAIResponse(
   const startTime = Date.now();
   const resolvedModel = resolveChatModel(model);
   let fullText = "";
+
+  // capture the message that is interrupted & going to calculate how long it took to generate whatever it generated and store it in db
+  // even though it was interrupted
+  const persistInterruptedMessage = async () => {
+    if (fullText.length === 0) return;
+
+    const elapsedMs = Date.now() - startTime;
+
+    await db.message.create({
+      data: {
+        sessionId,
+        role: "ASSISTANT",
+        status: MessageStatus.INTERRUPTED,
+        model,
+        content: fullText,
+        mode,
+        duration: Math.round(elapsedMs / 1000),
+      },
+    });
+  };
 
   try {
     const result = aiStreamText({
@@ -82,6 +123,7 @@ async function streamAIResponse(
     }
 
     if (stream.aborted || abortController.signal.aborted) {
+      await persistInterruptedMessage();
       return;
     }
 
@@ -111,6 +153,7 @@ async function streamAIResponse(
     });
   } catch (err) {
     if (abortController.signal.aborted) {
+      await persistInterruptedMessage();
       return;
     }
 
@@ -149,8 +192,8 @@ const app = new Hono()
       return c.json({ eror: "Session not found" }, 404);
     }
 
-    const lastMessage = session.messages[session.messages.length - 1];
-    if (!lastMessage || lastMessage.role !== "USER") {
+    const resumableMessage = getResumableUserMessage(session.messages);
+    if (!resumableMessage) {
       return c.json(
         { error: "Session has no pending user message to resume" },
         409
@@ -158,47 +201,67 @@ const app = new Hono()
     }
 
     // perhaps the model is from last year & we deprecated it
-    if (!isSupportedChatModel(lastMessage.model)) {
+    if (!isSupportedChatModel(resumableMessage.model)) {
       return c.json(
         {
-          error: `Session uses unsupported model: ${lastMessage.model}`,
+          error: `Session uses unsupported model: ${resumableMessage.model}`,
         },
         409
       );
     }
 
+    // useEffect fires activeResume, so we need to check can happen twice also
+    if (activeResumeSessionIds.has(sessionId)) {
+      return c.json({ error: "Session already has an active resume" }, 409);
+    }
+
+    // no resume was in progress, so can succesfully add them in resume
+    activeResumeSessionIds.add(sessionId);
+
     const history = buildConversationHistory(session.messages);
     const abortController = new AbortController();
 
     // 3 argument of streamSSE(context, response, error)
-    return streamSSE(
-      c,
-      async (stream) => {
-        stream.onAbort(() => {
-          abortController.abort();
-        });
+    try {
+      return streamSSE(
+        c,
+        async (stream) => {
+          stream.onAbort(() => {
+            abortController.abort();
+          });
 
-        await streamAIResponse(stream, {
-          sessionId,
-          model: lastMessage.model,
-          history,
-          mode: lastMessage.mode,
-          abortController,
-        });
-      },
-      // handling the error because something can go wrong(sending back the errorEvent to the terminal if something happens)
-      // the error happens here will not be persisted on the db (bc they are basically temporary errors)
-      // because these error are the error except/out of the streamAIResponse
-      // bc streamAIResponse contain contains its own try-catch block and throw there
-      async (err, stream) => {
-        const message = err instanceof Error ? err.message : String(err);
-        const errorEvent: ChatStreamEvent = { type: "error", message };
-        await stream.writeSSE({
-          event: "error",
-          data: JSON.stringify(errorEvent),
-        });
-      }
-    );
+          try {
+            await streamAIResponse(stream, {
+              sessionId,
+              model: resumableMessage.model,
+              history,
+              mode: resumableMessage.mode,
+              abortController,
+            });
+          } finally {
+            // resume ended, delete that from our in-memory app
+            activeResumeSessionIds.delete(sessionId);
+          }
+        },
+        // handling the error because something can go wrong(sending back the errorEvent to the terminal if something happens)
+        // the error happens here will not be persisted on the db (bc they are basically temporary errors)
+        // because these error are the error except/out of the streamAIResponse
+        // bc streamAIResponse contain contains its own try-catch block and throw there
+        async (err, stream) => {
+          activeResumeSessionIds.delete(sessionId);
+          const message = err instanceof Error ? err.message : String(err);
+          const errorEvent: ChatStreamEvent = { type: "error", message };
+          await stream.writeSSE({
+            event: "error",
+            data: JSON.stringify(errorEvent),
+          });
+        }
+      );
+    } catch (error) {
+      // if error occured our in-memory should know that this message is ended or deleted
+      activeResumeSessionIds.delete(sessionId);
+      throw error;
+    }
   })
   .post("/:sessionId", submitValidator, async (c) => {
     const sessionId = c.req.param("sessionId");

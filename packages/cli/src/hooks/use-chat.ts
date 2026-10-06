@@ -34,6 +34,7 @@ export type Message =
       model: SupportedChatModelId;
       parts: ClientMessagePart[];
       duration?: string;
+      interrupted?: boolean;
     }
   | {
       id: string;
@@ -58,6 +59,7 @@ type ActiveStream = {
   mode: Mode;
   model: SupportedChatModelId;
   parts: ClientMessagePart[];
+  interruptedCaptured: boolean;
 };
 
 type SubmitParams = {
@@ -111,6 +113,36 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
       });
     },
     [isActiveRequest]
+  );
+
+  const captureInterruptedMessage = useCallback(
+    (activeStream: ActiveStream) => {
+      if (activeStream.interruptedCaptured || activeStream.parts.length === 0) {
+        return;
+      }
+
+      activeStream.interruptedCaptured = true;
+      const parts = [...activeStream.parts];
+      const fullText = parts
+        .filter((p) => p.type === "text")
+        .map((p) => p.text)
+        .join("");
+
+      // an optimistic update of the messages (Interrupted message, don't do duration)
+      updateMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: fullText,
+          mode: activeStream.mode,
+          model: activeStream.model,
+          parts,
+          interrupted: true,
+        },
+      ]);
+    },
+    []
   );
 
   const clearStream = useCallback(
@@ -188,7 +220,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
               .map((p) => p.text)
               .join("");
 
-            // now we preserve the previous messages and updateMessage coming from the assistant
+            // now we preserve the previous messages and updateMessage coming from the assistant (optimistic update of the successful messages)
             updateMessages((prev) => [
               ...prev,
               {
@@ -228,6 +260,7 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
         mode,
         model,
         parts: [],
+        interruptedCaptured: false,
       };
 
       activeStreamRef.current = activeStream;
@@ -266,6 +299,25 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
     [clearStream, handleStream, isActiveRequest, updateMessages]
   );
 
+  // going to add an ability to stop an active Stream
+  const stopActiveStream = useCallback(
+    (capturePartial: boolean) => {
+      const activeStream = activeStreamRef.current;
+      if (!activeStream) return;
+
+      // if we find any partial message we will add it to our optimistic state
+      if (capturePartial) {
+        captureInterruptedMessage(activeStream);
+      }
+
+      // we just interrupted this one
+      activeStreamRef.current = null;
+      setStreaming({ status: "idle" });
+      activeStream.controller.abort();
+    },
+    [captureInterruptedMessage]
+  );
+
   const resume = useCallback(
     async (
       { mode, model }: Omit<SubmitParams, "userText"> // user is not going to pass any new text , just extract the userText which is kind of a submission using submitParam
@@ -297,6 +349,10 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
 
   const submit = useCallback(
     async ({ userText, mode, model }: SubmitParams) => {
+      // Show the partial answer before sending the next message
+      // persist the message that we just submitted
+      stopActiveStream(true);
+
       const userMessage: Message = {
         id: crypto.randomUUID(),
         role: "user",
@@ -328,17 +384,16 @@ export function useChat(sessionId: string, initialMessages: Message[]) {
         },
       });
     },
-    [runStream, sessionId, updateMessages]
+    [runStream, sessionId, updateMessages, stopActiveStream]
   );
 
   const abort = useCallback(() => {
-    const activeStream = activeStreamRef.current;
-    if (!activeStream) return;
+    stopActiveStream(false);
+  }, [stopActiveStream]);
 
-    activeStreamRef.current = null;
-    setStreaming({ status: "idle" });
-    activeStream.controller.abort();
-  }, []);
+  const interrupt = useCallback(() => {
+    stopActiveStream(true);
+  }, [stopActiveStream]);
 
-  return { messages, streaming, submit, abort };
+  return { messages, streaming, submit, abort, interrupt };
 }

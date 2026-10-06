@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
+import { MessageStatus } from "@openforge/database/enums";
 import {
   DEFAULT_CHAT_MODEL_ID,
   type SupportedChatModelId,
 } from "@openforge/shared";
+import { useKeyboard } from "@opentui/react";
 import type { InferResponseType } from "hono/client";
 import prettyMs from "pretty-ms";
 import { z } from "zod";
@@ -14,6 +16,7 @@ import { SessionShell } from "../components/session-shell";
 import { type Message, useChat } from "../hooks/use-chat";
 import { apiClient } from "../lib/api-client";
 import { getErrorMessage } from "../lib/http-errors";
+import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useToast } from "../providers/toast";
 
 // getting the type from the server "/session/:id", so that we will know that what will be returned
@@ -54,6 +57,7 @@ function mapDbMessages(dbMessages: SessionData["messages"]): Message[] {
       mode: m.mode,
       parts: [{ type: "text", text: m.content }],
       ...(m.duration != null ? { duration: prettyMs(m.duration * 1000) } : {}),
+      interrupted: m.status === MessageStatus.INTERRUPTED,
     };
   });
 }
@@ -76,13 +80,15 @@ function ChatMessage({ msg }: { msg: Message }) {
       mode={msg.mode}
       duration={msg.duration}
       streaming={false}
+      interrupted={msg.interrupted}
     />
   );
 }
 
 function SessionChat({ session }: { session: SessionData }) {
   const [initialMessages] = useState(() => mapDbMessages(session.messages));
-  const { messages, streaming, submit, abort } = useChat(
+  const { isTopLayer } = useKeyboardLayer();
+  const { messages, streaming, submit, abort, interrupt } = useChat(
     session.id,
     initialMessages
   );
@@ -92,12 +98,26 @@ function SessionChat({ session }: { session: SessionData }) {
     return () => abort();
   }, [abort]);
 
+  // Let the user cancel a reply even before the first streamed chunk arrives.
+  // only if its the base layer and also have streaming then on esc press we can interrupt
+  useKeyboard((key) => {
+    if (
+      key.name === "escape" &&
+      isTopLayer("base") &&
+      streaming.status === "streaming"
+    ) {
+      key.preventDefault();
+      interrupt();
+    }
+  });
+
   return (
     <SessionShell
       onSubmit={(text) =>
         submit({ userText: text, mode: "BUILD", model: DEFAULT_CHAT_MODEL_ID })
       }
       loading={streaming.status === "streaming"}
+      interruptible={streaming.status === "streaming"}
     >
       {messages.map((msg) => (
         <ChatMessage key={msg.id} msg={msg} />
