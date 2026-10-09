@@ -1,10 +1,17 @@
 import { zValidator } from "@hono/zod-validator";
 import { MessageStatus, Mode } from "@openforge/database";
 import { db } from "@openforge/database/client";
-import { type ChatStreamEvent } from "@openforge/shared";
+
 import { streamText as aiStreamText } from "ai";
 import { Hono } from "hono";
-import { stream, streamSSE } from "hono/streaming";
+import { streamSSE } from "hono/streaming";
+import type { Prisma } from "@openforge/database";
+import {
+  type ChatStreamEvent,
+  type MessagePart,
+  toolCallArgsSchema,
+  messagePartsSchema
+} from "@openforge/shared"
 import { z } from "zod";
 
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
@@ -76,15 +83,28 @@ async function streamAIResponse(
 ) {
   const { sessionId, model, history, mode, abortController } = params;
   const startTime = Date.now();
+  // array of tool-call , reasoning or text
+  const parts: MessagePart[] = []
   const resolvedModel = resolveChatModel(model);
-  let fullText = "";
+
 
   // capture the message that is interrupted & going to calculate how long it took to generate whatever it generated and store it in db
   // even though it was interrupted
   const persistInterruptedMessage = async () => {
-    if (fullText.length === 0) return;
+    const fullText = parts  
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("")
+
+    if (fullText.length === 0 && parts.length === 0) {
+      return
+    }
 
     const elapsedMs = Date.now() - startTime;
+    // using InputJsonValue this because of the schama of messages we have Json which is dynamic in nature 
+    // so can vary its structure alot
+    const validatedParts: Prisma.InputJsonValue | undefined = 
+      parts.length > 0 ? messagePartsSchema.parse(parts) : undefined
 
     await db.message.create({
       data: {
@@ -93,6 +113,7 @@ async function streamAIResponse(
         status: MessageStatus.INTERRUPTED,
         model,
         content: fullText,
+        parts: validatedParts,
         mode,
         duration: Math.round(elapsedMs / 1000),
       },
@@ -104,19 +125,85 @@ async function streamAIResponse(
       model: resolvedModel.model,
       messages: history,
       abortSignal: abortController.signal,
+      providerOptions: resolvedModel.providerOptions
     });
 
     for await (const part of result.fullStream) {
       if (stream.aborted) break;
 
+      // llm is thinking
+      if (part.type === "reasoning-delta") {
+        const last = parts[parts.length -1]
+        // if the last part is still reasoning then append the text
+        if (last && last.type === "reasoning") {
+          last.text += part.text
+        } else {
+          // otherwise push or stream back something new
+          parts.push({ type: "reasoning", text: part.text })
+        }
+        const event: ChatStreamEvent = {type: "reasoning-delta", text: part.text }
+        await stream.writeSSE({
+          event: "reasoning-delta",
+          data: JSON.stringify(event)
+        })
+      }
+
       if (part.type === "text-delta") {
-        fullText += part.text;
-        const event: ChatStreamEvent = { type: "text-delta", text: part.text };
+        const last = parts[parts.length -1]
+        // if it is currently rendering text we are not going to create any new section rather keep appending the existing text
+        if (last && last.type === "text") {
+          last.text += part.text  
+        } else {
+          parts.push({ type: "text", text: part.text})
+        }
+
+        const event: ChatStreamEvent = { type: "text-delta", text: part.text}
         await stream.writeSSE({
           event: "text-delta",
-          data: JSON.stringify(event),
-        });
+          data: JSON.stringify(event)
+        })
       }
+
+      if (part.type === "tool-call") {
+        const args = toolCallArgsSchema.parse(part.input)
+
+        parts.push({
+          type: "tool-call",
+          id: part.toolCallId,
+          name: part.toolName,
+          args
+        })
+
+        const event: ChatStreamEvent = {
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          args
+        }
+        await stream.writeSSE({ event: "tool-call", data: JSON.stringify(event)})
+      }
+
+      // started calling a tool then here we handle the finish callig a tool
+      if (part.type === "tool-result") {
+        const resultStr = typeof part.output === "string" ? part.output : JSON.stringify(part.output)
+
+        const tcPart = parts.find(
+          // ugly tsc for strict type (otherwise very simple fn)
+          (p): p is Extract<MessagePart, {type: "tool-call"}> => 
+            p.type === "tool-call" && p.id === part.toolCallId
+        );
+
+        if (tcPart) {
+          tcPart.result = resultStr
+        }
+
+        const event: ChatStreamEvent = {
+          type: "tool-result",
+          toolCallId: part.toolCallId,
+          result: resultStr
+        }
+      }
+      
       if (part.type === "error") {
         throw part.error;
       }
@@ -129,6 +216,15 @@ async function streamAIResponse(
 
     const elapsedMs = Date.now() - startTime;
 
+    // fullText querying over all the parts and only filtering those who are actual text
+    const fullText = parts
+      .filter((p)=> p.type === "text")
+      .map((p) => p.text)
+      .join("")
+
+      const validatedParts: Prisma.InputJsonValue | undefined = 
+        parts.length > 0 ? messagePartsSchema.parse(parts) : undefined
+
     const assistantMessage = await db.message.create({
       data: {
         sessionId,
@@ -136,6 +232,7 @@ async function streamAIResponse(
         status: MessageStatus.COMPLETE,
         model,
         content: fullText,
+        parts: validatedParts,
         mode,
         duration: Math.round(elapsedMs / 1000),
       },
