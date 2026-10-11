@@ -1,20 +1,21 @@
 import { zValidator } from "@hono/zod-validator";
 import { MessageStatus, Mode } from "@openforge/database";
-import { db } from "@openforge/database/client";
-
-import { streamText as aiStreamText } from "ai";
-import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
 import type { Prisma } from "@openforge/database";
+import { db } from "@openforge/database/client";
 import {
   type ChatStreamEvent,
   type MessagePart,
+  messagePartsSchema,
   toolCallArgsSchema,
-  messagePartsSchema
-} from "@openforge/shared"
+} from "@openforge/shared";
+import { streamText as aiStreamText, stepCountIs } from "ai";
+import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
+import { buildSystemPrompt } from "../system-prompt";
+import { createTools } from "../tools";
 
 const submitSchema = z.object({
   content: z.string(),
@@ -72,6 +73,7 @@ function getResumableUserMessage(
 type StreamParams = {
   sessionId: string;
   model: string;
+  cwd: string | null;
   history: { role: "user" | "assistant"; content: string }[];
   mode: Mode;
   abortController: AbortController;
@@ -81,30 +83,30 @@ async function streamAIResponse(
   stream: Parameters<Parameters<typeof streamSSE>[1]>[0],
   params: StreamParams
 ) {
-  const { sessionId, model, history, mode, abortController } = params;
+  const { sessionId, model, cwd, history, mode, abortController } = params;
   const startTime = Date.now();
+  const tools = cwd ? createTools(cwd, mode) : undefined;
   // array of tool-call , reasoning or text
-  const parts: MessagePart[] = []
+  const parts: MessagePart[] = [];
   const resolvedModel = resolveChatModel(model);
-
 
   // capture the message that is interrupted & going to calculate how long it took to generate whatever it generated and store it in db
   // even though it was interrupted
   const persistInterruptedMessage = async () => {
-    const fullText = parts  
+    const fullText = parts
       .filter((p) => p.type === "text")
       .map((p) => p.text)
-      .join("")
+      .join("");
 
     if (fullText.length === 0 && parts.length === 0) {
-      return
+      return;
     }
 
     const elapsedMs = Date.now() - startTime;
-    // using InputJsonValue this because of the schama of messages we have Json which is dynamic in nature 
+    // using InputJsonValue this because of the schama of messages we have Json which is dynamic in nature
     // so can vary its structure alot
-    const validatedParts: Prisma.InputJsonValue | undefined = 
-      parts.length > 0 ? messagePartsSchema.parse(parts) : undefined
+    const validatedParts: Prisma.InputJsonValue | undefined =
+      parts.length > 0 ? messagePartsSchema.parse(parts) : undefined;
 
     await db.message.create({
       data: {
@@ -123,9 +125,12 @@ async function streamAIResponse(
   try {
     const result = aiStreamText({
       model: resolvedModel.model,
+      system: buildSystemPrompt({ cwd, mode }),
+      tools,
+      stopWhen: tools ? stepCountIs(50) : undefined,
       messages: history,
       abortSignal: abortController.signal,
-      providerOptions: resolvedModel.providerOptions
+      providerOptions: resolvedModel.providerOptions,
     });
 
     for await (const part of result.fullStream) {
@@ -133,77 +138,86 @@ async function streamAIResponse(
 
       // llm is thinking
       if (part.type === "reasoning-delta") {
-        const last = parts[parts.length -1]
+        const last = parts[parts.length - 1];
         // if the last part is still reasoning then append the text
         if (last && last.type === "reasoning") {
-          last.text += part.text
+          last.text += part.text;
         } else {
           // otherwise push or stream back something new
-          parts.push({ type: "reasoning", text: part.text })
+          parts.push({ type: "reasoning", text: part.text });
         }
-        const event: ChatStreamEvent = {type: "reasoning-delta", text: part.text }
+        const event: ChatStreamEvent = {
+          type: "reasoning-delta",
+          text: part.text,
+        };
         await stream.writeSSE({
           event: "reasoning-delta",
-          data: JSON.stringify(event)
-        })
+          data: JSON.stringify(event),
+        });
       }
 
       if (part.type === "text-delta") {
-        const last = parts[parts.length -1]
+        const last = parts[parts.length - 1];
         // if it is currently rendering text we are not going to create any new section rather keep appending the existing text
         if (last && last.type === "text") {
-          last.text += part.text  
+          last.text += part.text;
         } else {
-          parts.push({ type: "text", text: part.text})
+          parts.push({ type: "text", text: part.text });
         }
 
-        const event: ChatStreamEvent = { type: "text-delta", text: part.text}
+        const event: ChatStreamEvent = { type: "text-delta", text: part.text };
         await stream.writeSSE({
           event: "text-delta",
-          data: JSON.stringify(event)
-        })
+          data: JSON.stringify(event),
+        });
       }
 
       if (part.type === "tool-call") {
-        const args = toolCallArgsSchema.parse(part.input)
+        const args = toolCallArgsSchema.parse(part.input);
 
         parts.push({
           type: "tool-call",
           id: part.toolCallId,
           name: part.toolName,
-          args
-        })
+          args,
+        });
 
         const event: ChatStreamEvent = {
           type: "tool-call",
           toolCallId: part.toolCallId,
           toolName: part.toolName,
-          args
-        }
-        await stream.writeSSE({ event: "tool-call", data: JSON.stringify(event)})
+          args,
+        };
+        await stream.writeSSE({
+          event: "tool-call",
+          data: JSON.stringify(event),
+        });
       }
 
       // started calling a tool then here we handle the finish callig a tool
       if (part.type === "tool-result") {
-        const resultStr = typeof part.output === "string" ? part.output : JSON.stringify(part.output)
+        const resultStr =
+          typeof part.output === "string"
+            ? part.output
+            : JSON.stringify(part.output);
 
         const tcPart = parts.find(
           // ugly tsc for strict type (otherwise very simple fn)
-          (p): p is Extract<MessagePart, {type: "tool-call"}> => 
+          (p): p is Extract<MessagePart, { type: "tool-call" }> =>
             p.type === "tool-call" && p.id === part.toolCallId
         );
 
         if (tcPart) {
-          tcPart.result = resultStr
+          tcPart.result = resultStr;
         }
 
         const event: ChatStreamEvent = {
           type: "tool-result",
           toolCallId: part.toolCallId,
-          result: resultStr
-        }
+          result: resultStr,
+        };
       }
-      
+
       if (part.type === "error") {
         throw part.error;
       }
@@ -218,12 +232,12 @@ async function streamAIResponse(
 
     // fullText querying over all the parts and only filtering those who are actual text
     const fullText = parts
-      .filter((p)=> p.type === "text")
+      .filter((p) => p.type === "text")
       .map((p) => p.text)
-      .join("")
+      .join("");
 
-      const validatedParts: Prisma.InputJsonValue | undefined = 
-        parts.length > 0 ? messagePartsSchema.parse(parts) : undefined
+    const validatedParts: Prisma.InputJsonValue | undefined =
+      parts.length > 0 ? messagePartsSchema.parse(parts) : undefined;
 
     const assistantMessage = await db.message.create({
       data: {
@@ -331,6 +345,7 @@ const app = new Hono()
             await streamAIResponse(stream, {
               sessionId,
               model: resumableMessage.model,
+              cwd: session.cwd,
               history,
               mode: resumableMessage.mode,
               abortController,
@@ -410,6 +425,7 @@ const app = new Hono()
         await streamAIResponse(stream, {
           sessionId,
           model: data.model,
+          cwd: session.cwd,
           history,
           mode: data.mode,
           abortController,

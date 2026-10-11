@@ -1,15 +1,15 @@
+import { Mode } from "@openforge/database/enums";
 import "opentui-spinner/react";
 
-import { Mode } from "@openforge/database/enums";
 import { useTheme } from "../providers/theme";
 
 type Props = {
   mode?: Mode;
-}
+};
 
-export function Spinner({ mode = Mode.BUILD}: Props) {
+export function Spinner({ mode = Mode.BUILD }: Props) {
   const { colors } = useTheme();
-  const activeColor = mode === Mode.PLAN ? colors.planMode : colors.primary
+  const activeColor = mode === Mode.PLAN ? colors.planMode : colors.primary;
 
   return <spinner name="aesthetic" color={colors.primary} />;
 }

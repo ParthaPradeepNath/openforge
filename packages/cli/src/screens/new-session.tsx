@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 
+import { Mode } from "@openforge/database/enums";
 import { DEFAULT_CHAT_MODEL_ID } from "@openforge/shared";
-import { parse, z } from "zod";
+import { z } from "zod";
 
 import { UserMessage } from "../components/messages";
 import { SessionShell } from "../components/session-shell";
@@ -12,6 +13,8 @@ import { useToast } from "../providers/toast";
 
 const newSessionStateSchema = z.object({
   message: z.string(),
+  mode: z.enum(Mode),
+  model: z.string(),
 });
 
 export function NewSession() {
@@ -56,7 +59,7 @@ export function NewSession() {
             initialMessage: {
               role: "USER",
               content: state.message,
-              mode: "BUILD",
+              mode: state.mode,
               model: DEFAULT_CHAT_MODEL_ID,
             },
           },
@@ -96,7 +99,7 @@ export function NewSession() {
 
   return (
     <SessionShell onSubmit={() => {}} inputDisabled loading>
-      <UserMessage message={state.message} />
+      <UserMessage message={state.message} mode={state.mode} />
     </SessionShell>
   );
 }

@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 
 import { TextAttributes } from "@opentui/core";
 
+import { usePromptConfig } from "../providers/prompt-config";
 import { InputBar } from "./input-bar";
 import { Spinner } from "./spinner";
-import { usePromptConfig } from "../providers/prompt-config";
 
 type Props = {
   children?: ReactNode;
@@ -21,8 +21,8 @@ export function SessionShell({
   loading = false,
   interruptible = false,
 }: Props) {
-  const {mode} = usePromptConfig()
-  
+  const { mode } = usePromptConfig();
+
   return (
     <box
       width="100%"
