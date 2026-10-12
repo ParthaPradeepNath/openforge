@@ -14,9 +14,9 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 
 import { isSupportedChatModel, resolveChatModel } from "../lib/models";
+import type { AuthenticatedEnv } from "../middleware/require-auth";
 import { buildSystemPrompt } from "../system-prompt";
 import { createTools } from "../tools";
-import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 const submitSchema = z.object({
   content: z.string(),
@@ -294,7 +294,7 @@ const app = new Hono<AuthenticatedEnv>()
   // and this resume will be very helpful for the optimistic way we are making the ui
   .post("/:sessionId/resume", async (c) => {
     const sessionId = c.req.param("sessionId");
-    const userId = c.get("userId")
+    const userId = c.get("userId");
 
     const session = await db.session.findUnique({
       where: { id: sessionId, userId },
@@ -379,7 +379,7 @@ const app = new Hono<AuthenticatedEnv>()
   })
   .post("/:sessionId", submitValidator, async (c) => {
     const sessionId = c.req.param("sessionId");
-    const userId = c.get("userId")
+    const userId = c.get("userId");
 
     const session = await db.session.findUnique({
       where: { id: sessionId, userId },

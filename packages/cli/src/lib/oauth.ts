@@ -156,15 +156,14 @@ export async function performLogin() {
     authorizeUrl.searchParams.set("code_challenge", codeChallenge);
     authorizeUrl.searchParams.set("code_challenge_method", "S256");
 
-    void open(authorizeUrl.toString())
+    void open(authorizeUrl.toString());
 
     setTimeout(() => {
-        if (!settled) {
-            settled = true
-            server.stop();
-            reject(new Error("Login timed out"))
-        }
-    },
-LOGIN_TIMEOUT_MS)
+      if (!settled) {
+        settled = true;
+        server.stop();
+        reject(new Error("Login timed out"));
+      }
+    }, LOGIN_TIMEOUT_MS);
   });
 }

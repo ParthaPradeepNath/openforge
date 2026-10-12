@@ -6,6 +6,7 @@ import { findSupportedChatModel } from "@openforge/shared";
 import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+
 import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 // later we will replace with real db
@@ -64,7 +65,7 @@ const createSessionValidator = zValidator(
 
 const app = new Hono<AuthenticatedEnv>()
   .get("/", async (c) => {
-    const userId = c.get("userId")
+    const userId = c.get("userId");
     // const result = sessions.map(({ id, title, createdAt }) => ({
     //   id,
     //   title,
@@ -74,7 +75,7 @@ const app = new Hono<AuthenticatedEnv>()
     // return c.json(result);
 
     const sessions = await db.session.findMany({
-      where: {userId},
+      where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -95,7 +96,7 @@ const app = new Hono<AuthenticatedEnv>()
     // )
 
     const id = c.req.param("id");
-    const userId = c.get("userId")
+    const userId = c.get("userId");
     // const session = sessions.find((s) => s.id === id);
 
     const session = await db.session.findUnique({
@@ -112,7 +113,7 @@ const app = new Hono<AuthenticatedEnv>()
     return c.json(session);
   })
   .post("/", createSessionValidator, async (c) => {
-    const userId = c.get("userId")
+    const userId = c.get("userId");
     // using a validated version of json to validate
     const { initialMessage, ...data } = c.req.valid("json");
 
