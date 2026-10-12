@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.71",
     "@ai-sdk/openai": "^4.0.83",
+    "@clerk/backend": "^3.23.2",
     "@hono/zod-validator": "^0.9.1",
     "@openforge/database": "workspace:*",
     "@openforge/shared": "workspace:*",

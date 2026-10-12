@@ -6,6 +6,7 @@ import { findSupportedChatModel } from "@openforge/shared";
 import { Hono } from "hono";
 // import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import type { AuthenticatedEnv } from "../middleware/require-auth";
 
 // later we will replace with real db
 // type MockMessage = {
@@ -61,8 +62,9 @@ const createSessionValidator = zValidator(
   }
 );
 
-const app = new Hono()
+const app = new Hono<AuthenticatedEnv>()
   .get("/", async (c) => {
+    const userId = c.get("userId")
     // const result = sessions.map(({ id, title, createdAt }) => ({
     //   id,
     //   title,
@@ -72,6 +74,7 @@ const app = new Hono()
     // return c.json(result);
 
     const sessions = await db.session.findMany({
+      where: {userId},
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -92,10 +95,11 @@ const app = new Hono()
     // )
 
     const id = c.req.param("id");
+    const userId = c.get("userId")
     // const session = sessions.find((s) => s.id === id);
 
     const session = await db.session.findUnique({
-      where: { id },
+      where: { id, userId }, // composite index
       include: {
         messages: { orderBy: { createdAt: "asc" } },
       },
@@ -108,13 +112,14 @@ const app = new Hono()
     return c.json(session);
   })
   .post("/", createSessionValidator, async (c) => {
+    const userId = c.get("userId")
     // using a validated version of json to validate
     const { initialMessage, ...data } = c.req.valid("json");
 
     const session = await db.session.create({
       data: {
         ...data,
-        userId: "mock-user",
+        userId,
         ...(initialMessage && {
           messages: {
             create: {

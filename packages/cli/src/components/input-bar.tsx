@@ -312,21 +312,23 @@ export const TEXTAREA_KEY_BINDINGS: KeyBinding[] = [
 export function InputBar({ onSubmit, disabled = false }: Props) {
   const textareaRef = useRef<TextareaRenderable>(null);
   const onSubmitRef = useRef<() => void>(() => {});
-  const activeMentionRef = useRef<MentionMatch | null>(null)
-  const mentionScrollRef = useRef<ScrollBoxRenderable>(null)
-  
+  const activeMentionRef = useRef<MentionMatch | null>(null);
+  const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
+
   const renderer = useRenderer();
   const toast = useToast();
   const dialog = useDialog();
   const navigate = useNavigate();
-  
+
   const { mode, toggleMode, setMode, setModel } = usePromptConfig();
-  const { isTopLayer, setResponder, push ,pop } = useKeyboardLayer();
+  const { isTopLayer, setResponder, push, pop } = useKeyboardLayer();
   const { colors } = useTheme();
 
-  const [activeMention, setActiveMention] = useState<MentionMatch | null>(null)
-  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([])
-  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
+  const [activeMention, setActiveMention] = useState<MentionMatch | null>(null);
+  const [mentionCandidates, setMentionCandidates] = useState<
+    MentionCandidate[]
+  >([]);
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 
   const {
     showCommandMenu,
@@ -339,44 +341,45 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   } = useCommandMenu();
 
   // kepp track if i need to show the mention menu
-  const showMentionMenu = activeMention !== null
+  const showMentionMenu = activeMention !== null;
 
   const closeMentionMenu = useCallback(() => {
-    activeMentionRef.current = null
-    setActiveMention(null)
-    setMentionCandidates([])
-    pop("mention")
-  }, [pop])
+    activeMentionRef.current = null;
+    setActiveMention(null);
+    setMentionCandidates([]);
+    pop("mention");
+  }, [pop]);
 
   const syncMentionMenu = useCallback(
     (text: string, cursorOffset: number) => {
-      const nextMention = findActiveMention(text, cursorOffset)
-      const previousMention = activeMentionRef.current
-      const mentionChanged = 
+      const nextMention = findActiveMention(text, cursorOffset);
+      const previousMention = activeMentionRef.current;
+      const mentionChanged =
         previousMention?.start !== nextMention?.start ||
         previousMention?.end !== nextMention?.end ||
-        previousMention?.query !== nextMention?.query
+        previousMention?.query !== nextMention?.query;
 
       if (!nextMention) {
         if (previousMention) {
-          closeMentionMenu()
+          closeMentionMenu();
         }
-        return
+        return;
       }
 
-      activeMentionRef.current = nextMention
-      setActiveMention(nextMention)
+      activeMentionRef.current = nextMention;
+      setActiveMention(nextMention);
       push("mention", () => {
-        closeMentionMenu()
-        return true
-      })
+        closeMentionMenu();
+        return true;
+      });
 
       if (mentionChanged) {
-        setMentionSelectedIndex(0)
-        mentionScrollRef.current?.scrollTo(0)
+        setMentionSelectedIndex(0);
+        mentionScrollRef.current?.scrollTo(0);
       }
-    }, [closeMentionMenu, push]
-  )
+    },
+    [closeMentionMenu, push]
+  );
 
   // Kept in a ref so the stable content-change callback always reads the latest
   // handleContentChange instead of the one captured on first render.
@@ -391,7 +394,7 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
 
     const text = textarea.plainText;
     handleContentChangeRef.current(text);
-    syncMentionMenu(text, textarea.cursorOffset)
+    syncMentionMenu(text, textarea.cursorOffset);
   }, [syncMentionMenu]);
 
   const handleSubmit = useCallback(() => {
@@ -409,31 +412,33 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   }, [disabled, onSubmit]);
 
   // they selected the mention and enter it
-  const handleMentionExecute = useCallback((index: number) => {
-    const textarea = textareaRef.current
-    const mention = activeMentionRef.current
-    const candidate = mentionCandidates[index]
+  const handleMentionExecute = useCallback(
+    (index: number) => {
+      const textarea = textareaRef.current;
+      const mention = activeMentionRef.current;
+      const candidate = mentionCandidates[index];
 
-    // all 3 need to be present to procees
-    if (!textarea || !mention || !candidate) return
+      // all 3 need to be present to procees
+      if (!textarea || !mention || !candidate) return;
 
-    const insertion = candidate.kind === "directory"
-      ? candidate.path 
-      : `${candidate.path}`;
+      const insertion =
+        candidate.kind === "directory" ? candidate.path : `${candidate.path}`;
 
-      const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`
+      const nextText = `${textarea.plainText.slice(0, mention.start)}@${insertion}${textarea.plainText.slice(mention.end)}`;
 
-      textarea.replaceText(nextText)
-      textarea.cursorOffset = mention.start + insertion.length +1 
-      syncMentionMenu(nextText, textarea.cursorOffset)
-  }, [mentionCandidates, syncMentionMenu])
+      textarea.replaceText(nextText);
+      textarea.cursorOffset = mention.start + insertion.length + 1;
+      syncMentionMenu(nextText, textarea.cursorOffset);
+    },
+    [mentionCandidates, syncMentionMenu]
+  );
 
   const handleTextareaCursorChange = useCallback(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    syncMentionMenu(textarea.plainText, textarea.cursorOffset)
-  }, [syncMentionMenu])
+    syncMentionMenu(textarea.plainText, textarea.cursorOffset);
+  }, [syncMentionMenu]);
 
   const handleCommand = useCallback(
     (command: Command | undefined) => {
@@ -466,41 +471,43 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   const handleCommandRef = useRef(handleCommand);
   handleCommandRef.current = handleCommand;
 
-  const handleCommandExecute = useCallback((index: number) => {
-    const command = resolveCommand(index);
-    handleCommand(command);
-  }, [resolveCommand, handleCommand]);
+  const handleCommandExecute = useCallback(
+    (index: number) => {
+      const command = resolveCommand(index);
+      handleCommand(command);
+    },
+    [resolveCommand, handleCommand]
+  );
 
   // Keep the file picker in sync with the current @mention token.
   useEffect(() => {
     if (!activeMention) {
-      setMentionCandidates([])
-      return
+      setMentionCandidates([]);
+      return;
     }
-    
-    let ignore = false
+
+    let ignore = false;
     const loadCandidates = async () => {
-      const nextCandidates = await getMentionCandidates(activeMention.query)
+      const nextCandidates = await getMentionCandidates(activeMention.query);
 
-      if (ignore) return
+      if (ignore) return;
 
-      setMentionCandidates(nextCandidates)
+      setMentionCandidates(nextCandidates);
       setMentionSelectedIndex((currentIndex) => {
         if (nextCandidates.length === 0) {
-          return 0
+          return 0;
         }
 
-        return Math.min(currentIndex, nextCandidates.length -1)
-      })
-    }
+        return Math.min(currentIndex, nextCandidates.length - 1);
+      });
+    };
 
-    void loadCandidates()
+    void loadCandidates();
 
     return () => {
-      ignore = true
-    }
-  }, [activeMention])
-  
+      ignore = true;
+    };
+  }, [activeMention]);
 
   // Wire up textarea submit handler once so it always reads the latest state
   useEffect(() => {
@@ -524,10 +531,10 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
     }
 
     if (showMentionMenu) {
-      const candidate = mentionCandidates[mentionSelectedIndex]
+      const candidate = mentionCandidates[mentionSelectedIndex];
       if (candidate) {
-        handleMentionExecute(mentionSelectedIndex)
-        return
+        handleMentionExecute(mentionSelectedIndex);
+        return;
       }
     }
 
@@ -561,45 +568,48 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
   }, [disabled, setResponder]);
 
   useKeyboard((key) => {
-    if (disabled) return
+    if (disabled) return;
 
-    if(!showMentionMenu || !isTopLayer("mention")) return
+    if (!showMentionMenu || !isTopLayer("mention")) return;
 
     if (key.name === "escape") {
-      key.preventDefault()
-      closeMentionMenu()
+      key.preventDefault();
+      closeMentionMenu();
     } else if (key.name === "up") {
-      key.preventDefault()
+      key.preventDefault();
       setMentionSelectedIndex((currentIndex) => {
-        const nextIndex = Math.max(0, currentIndex -1)
-        const scrollbox = mentionScrollRef.current
+        const nextIndex = Math.max(0, currentIndex - 1);
+        const scrollbox = mentionScrollRef.current;
         if (scrollbox && nextIndex < scrollbox.scrollTop) {
-          scrollbox.scrollTo(nextIndex)
+          scrollbox.scrollTo(nextIndex);
         }
-        return nextIndex
-      })
+        return nextIndex;
+      });
     } else if (key.name === "down") {
-      key.preventDefault()
+      key.preventDefault();
       setMentionSelectedIndex((currentIndex) => {
         if (mentionCandidates.length === 0) {
-          return 0
+          return 0;
         }
 
-        const nextIndex = Math.min(mentionCandidates.length - 1, currentIndex + 1)
-        const scrollbox = mentionScrollRef.current
+        const nextIndex = Math.min(
+          mentionCandidates.length - 1,
+          currentIndex + 1
+        );
+        const scrollbox = mentionScrollRef.current;
 
         if (scrollbox) {
-          const viewportHeight = scrollbox.viewport.height
-          const visibleEnd = scrollbox.scrollTop + viewportHeight -1
+          const viewportHeight = scrollbox.viewport.height;
+          const visibleEnd = scrollbox.scrollTop + viewportHeight - 1;
           if (nextIndex > visibleEnd) {
-            scrollbox.scrollTo(nextIndex - viewportHeight + 1)
+            scrollbox.scrollTo(nextIndex - viewportHeight + 1);
           }
         }
 
-        return nextIndex
-      })
+        return nextIndex;
+      });
     }
-  })
+  });
 
   return (
     <box width="100%">
@@ -646,12 +656,12 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
           )}
           {!showCommandMenu && showMentionMenu && (
             <box
-            position="absolute"
-            bottom="100%"
-            left={0}
-            width="100%"
-            backgroundColor={colors.surface}
-            zIndex={10}
+              position="absolute"
+              bottom="100%"
+              left={0}
+              width="100%"
+              backgroundColor={colors.surface}
+              zIndex={10}
             >
               <FileMentionMenu
                 candidates={mentionCandidates}
@@ -663,8 +673,12 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
             </box>
           )}
           <textarea
-            focused={!disabled &&
-               (isTopLayer("base") || isTopLayer("command") || isTopLayer("mention"))}
+            focused={
+              !disabled &&
+              (isTopLayer("base") ||
+                isTopLayer("command") ||
+                isTopLayer("mention"))
+            }
             keyBindings={TEXTAREA_KEY_BINDINGS}
             placeholder={`Ask anything... "Fix a bug in the authentication flow"`}
             ref={textareaRef}
