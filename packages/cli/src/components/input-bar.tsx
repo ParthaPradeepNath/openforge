@@ -173,7 +173,12 @@ async function getMentionCandidates(
         };
       });
 
-    if (directMatches.length > 0 || directoryPart !== "" || namePrefix === "") {
+    if (
+      directMatches.length > 0 ||
+      directoryPart !== "" ||
+      namePrefix === "" ||
+      namePrefix.length < 2
+    ) {
       return directMatches;
     }
 
@@ -502,10 +507,14 @@ export function InputBar({ onSubmit, disabled = false }: Props) {
       });
     };
 
-    void loadCandidates();
+    // void loadCandidates();
+    const handle = setTimeout(() => {
+      void loadCandidates();
+    }, 120);
 
     return () => {
       ignore = true;
+      clearTimeout(handle);
     };
   }, [activeMention]);
 
