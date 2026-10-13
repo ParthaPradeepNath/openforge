@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 
 import { requireAuth } from "./middleware/require-auth";
 import auth from "./routes/auth";
+import billing from "./routes/billing";
 import chat from "./routes/chat";
 import sessions from "./routes/sessions";
 
@@ -25,11 +26,13 @@ app.onError((error, c) => {
 
 app.use("/sessions/*", requireAuth);
 app.use("/chat/*", requireAuth);
+app.use("/billing/checkout", requireAuth);
 
 const routes = app
   .route("/auth", auth)
   .route("/sessions", sessions)
-  .route("/chat", chat);
+  .route("/chat", chat)
+  .route("/billing", billing);
 
 export type AppType = typeof routes;
 

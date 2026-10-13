@@ -2,6 +2,7 @@ import { SUPPORTED_CHAT_MODELS } from "@openforge/shared";
 
 import { clearAuth } from "../../lib/auth";
 import { performLogin } from "../../lib/oauth";
+import { openBillingPortal, openUpgradeCheckout } from "../../lib/upgrade";
 import {
   AgentsDialogContent,
   ModelsDialogContent,
@@ -97,9 +98,26 @@ export const COMMANDS: Command[] = [
     name: "logout",
     description: "Sign out of your account",
     value: "/logout",
-    action: (ctx) => {
+    action: async (ctx) => {
       clearAuth();
       ctx.toast.show({ variant: "success", message: "Signed out..." });
+
+      try {
+        await openBillingPortal();
+        ctx.toast.show({
+          variant: "success",
+          message: "Billing portal opened in browser",
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to open billing portal";
+        ctx.toast.show({
+          variant: "error",
+          message,
+        });
+      }
     },
   },
   {
@@ -114,8 +132,20 @@ export const COMMANDS: Command[] = [
     name: "upgrade",
     description: "Buy more credits",
     value: "/upgrade",
-    action: (ctx) => {
+    action: async (ctx) => {
       ctx.toast.show({ message: "Opening credits checkout..." });
+
+      try {
+        await openUpgradeCheckout();
+        ctx.toast.show({
+          variant: "success",
+          message: "Checkout opened in browser",
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to open checkout";
+        ctx.toast.show({ variant: "error", message });
+      }
     },
   },
   {

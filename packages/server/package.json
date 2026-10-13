@@ -17,6 +17,7 @@
     "@hono/zod-validator": "^0.9.1",
     "@openforge/database": "workspace:*",
     "@openforge/shared": "workspace:*",
+    "@polar-sh/sdk": "^1.0.2",
     "ai": "^7.0.127",
     "dotenv": "^18.0.5",
     "hono": "^4.13.12",
